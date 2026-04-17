@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Search } from 'lucide-react'
 
 interface AddProductDialogProps {
   open: boolean
@@ -17,6 +17,7 @@ interface AddProductDialogProps {
 export function AddProductDialog({ open, onClose, categories }: AddProductDialogProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [asinLoading, setAsinLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState({
     nome_comercial: '',
@@ -28,6 +29,26 @@ export function AddProductDialog({ open, onClose, categories }: AddProductDialog
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
+  }
+
+  async function fetchAsin() {
+    const asin = form.asin.trim().toUpperCase()
+    if (!asin.match(/^[A-Z0-9]{10}$/)) {
+      setError('ASIN deve ter 10 caracteres alfanuméricos')
+      return
+    }
+    setAsinLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/amazon/asin/${asin}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'ASIN não encontrado')
+      if (data.nome) setForm(prev => ({ ...prev, nome_comercial: data.nome }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao buscar ASIN')
+    } finally {
+      setAsinLoading(false)
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -94,13 +115,26 @@ export function AddProductDialog({ open, onClose, categories }: AddProductDialog
               </div>
               <div className="space-y-1.5">
                 <Label className="text-zinc-300">ASIN</Label>
-                <Input
-                  name="asin"
-                  value={form.asin}
-                  onChange={handleChange}
-                  placeholder="B0XXXXXXXX"
-                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    name="asin"
+                    value={form.asin}
+                    onChange={handleChange}
+                    placeholder="B0XXXXXXXX"
+                    className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={fetchAsin}
+                    disabled={asinLoading || !form.asin}
+                    className="border border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-700 flex-shrink-0"
+                    title="Buscar dados do ASIN na Amazon"
+                  >
+                    {asinLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
             </div>
 

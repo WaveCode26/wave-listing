@@ -41,9 +41,13 @@ export function SignupForm() {
     })
 
     if (error) {
-      setError(error.message === 'User already registered'
-        ? 'Este e-mail já está cadastrado.'
-        : 'Erro ao criar conta. Tente novamente.')
+      if (error.message.includes('already registered') || error.message.includes('already exists')) {
+        setError('Este e-mail já está cadastrado.')
+      } else if (error.message.includes('invalid')) {
+        setError('E-mail inválido.')
+      } else {
+        setError(`Erro: ${error.message}`)
+      }
       setLoading(false)
       return
     }

@@ -19,17 +19,35 @@ const IMAGE_TYPE_INSTRUCTIONS: Record<ImageType, string> = {
 }
 
 /**
+ * Fallback: gera um prompt direto sem Claude quando não há crédito Anthropic
+ */
+function buildFallbackPrompt(product: ProductInfo, type: ImageType): string {
+  const base = `${product.nome}${product.cor ? `, ${product.cor} color` : ''}${product.material ? `, made of ${product.material}` : ''}`
+  const extras = product.diferenciais ? `, featuring ${product.diferenciais}` : ''
+
+  const typePrompts: Record<ImageType, string> = {
+    main: `Professional Amazon product photo of ${base}${extras}. Pure white background (#FFFFFF), product centered occupying 85% of frame, soft studio lighting, slight 3/4 angle, sharp focus, e-commerce catalog quality, no shadows, no text, no props.`,
+    lifestyle: `Lifestyle photo of ${base}${extras} being used in a modern Brazilian home. Natural warm lighting, cozy atmosphere, person interacting with product (face not visible), realistic environment, professional photography, no text.`,
+    infographic: `Technical product photo of ${base}${extras}. Light gray background, multiple angles visible, professional studio lighting highlighting product details and features, clean composition, sharp focus, no text overlays.`,
+    detail: `Extreme close-up macro photo of ${base}${extras}. Focus on texture, material quality and finish details. Shallow depth of field (bokeh background), professional macro lighting, shows craftsmanship and quality.`,
+  }
+
+  return typePrompts[type]
+}
+
+/**
  * Step 1: Claude gera o prompt ideal em inglês para o DALL-E
  */
 export async function generateImagePrompt(product: ProductInfo, type: ImageType): Promise<string> {
   const typeInstruction = IMAGE_TYPE_INSTRUCTIONS[type]
 
-  const message = await anthropic.messages.create({
-    model: AI_MODEL,
-    max_tokens: 300,
-    messages: [{
-      role: 'user',
-      content: `Você é especialista em fotografia de produto para Amazon Brasil e prompts para geração de imagem com IA.
+  try {
+    const message = await anthropic.messages.create({
+      model: AI_MODEL,
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: `Você é especialista em fotografia de produto para Amazon Brasil e prompts para geração de imagem com IA.
 
 Produto: ${product.nome}
 Categoria: ${product.categoria ?? 'geral'}
@@ -45,11 +63,15 @@ Crie um prompt em INGLÊS para o DALL-E 3 gerar esta imagem. O prompt deve ser:
 - Incluir estilo fotográfico, iluminação, ângulo, fundo
 - Máximo 200 palavras
 - Responda APENAS com o prompt, sem explicações`,
-    }],
-  })
+      }],
+    })
 
-  const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-  return text
+    const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+    return text || buildFallbackPrompt(product, type)
+  } catch {
+    // Fallback quando Anthropic não tem crédito
+    return buildFallbackPrompt(product, type)
+  }
 }
 
 /**

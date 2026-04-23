@@ -57,7 +57,7 @@ export default function ImagesPage() {
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<GeneratedImage[]>([])
   const [showPrompt, setShowPrompt] = useState<string | null>(null)
-  const [uploadedPhoto, setUploadedPhoto] = useState<string | null>(null)
+  const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]) // array de dataURLs
   const fileRef = useRef<HTMLInputElement>(null)
 
   function handleSelect(field: keyof FormState, value: string) {
@@ -65,44 +65,55 @@ export default function ImagesPage() {
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
 
     setAnalyzing(true)
     setError(null)
 
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target?.result as string
-      setUploadedPhoto(dataUrl)
+    // Lê todos os arquivos como base64
+    const readFile = (file: File): Promise<{ dataUrl: string; base64: string; mimeType: string }> =>
+      new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (ev) => {
+          const dataUrl = ev.target?.result as string
+          resolve({ dataUrl, base64: dataUrl.split(',')[1], mimeType: file.type })
+        }
+        reader.readAsDataURL(file)
+      })
 
-      // Extrai base64 puro
-      const base64 = dataUrl.split(',')[1]
-      const mimeType = file.type
+    try {
+      const fileData = await Promise.all(files.map(readFile))
+      const newPhotos = fileData.map(f => f.dataUrl)
+      setUploadedPhotos(prev => [...prev, ...newPhotos].slice(0, 5)) // máximo 5 fotos
 
-      try {
-        const res = await fetch('/api/images/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64, mimeType }),
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error ?? 'Erro na análise')
+      const res = await fetch('/api/images/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images: fileData.map(f => ({ base64: f.base64, mimeType: f.mimeType })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro na análise')
 
-        setForm(prev => ({
-          nome: data.nome || prev.nome,
-          categoria: data.categoria || prev.categoria,
-          cor: data.cor || prev.cor,
-          material: data.material || prev.material,
-          diferenciais: data.diferenciais || prev.diferenciais,
-        }))
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro ao analisar foto')
-      } finally {
-        setAnalyzing(false)
-      }
+      setForm(prev => ({
+        nome: data.nome || prev.nome,
+        categoria: data.categoria || prev.categoria,
+        cor: data.cor || prev.cor,
+        material: data.material || prev.material,
+        diferenciais: data.diferenciais || prev.diferenciais,
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao analisar fotos')
+    } finally {
+      setAnalyzing(false)
+      if (fileRef.current) fileRef.current.value = ''
     }
-    reader.readAsDataURL(file)
+  }
+
+  function removePhoto(index: number) {
+    setUploadedPhotos(prev => prev.filter((_, i) => i !== index))
   }
 
   async function handleGenerate() {
@@ -159,33 +170,53 @@ export default function ImagesPage() {
             </div>
             <p className="text-xs text-zinc-500">Suba uma foto real do seu produto — Claude analisa e preenche os campos automaticamente</p>
 
-            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+            <input ref={fileRef} type="file" accept="image/*" multiple onChange={handlePhotoUpload} className="hidden" />
 
-            {uploadedPhoto ? (
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={uploadedPhoto} alt="Produto" className="w-full h-40 object-contain rounded-lg bg-zinc-800" />
-                <button
-                  onClick={() => { setUploadedPhoto(null); if (fileRef.current) fileRef.current.value = '' }}
-                  className="absolute top-2 right-2 bg-zinc-900 border border-zinc-700 rounded-full p-1 text-zinc-400 hover:text-white"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-                {analyzing && (
-                  <div className="absolute inset-0 bg-zinc-900/80 rounded-lg flex items-center justify-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-purple-400" />
-                    <span className="text-sm text-purple-300">Claude analisando...</span>
+            {/* Grid de fotos enviadas */}
+            {uploadedPhotos.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {uploadedPhotos.map((photo, i) => (
+                  <div key={i} className="relative aspect-square">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo} alt={`Foto ${i + 1}`} className="w-full h-full object-cover rounded-lg bg-zinc-800" />
+                    <button
+                      onClick={() => removePhoto(i)}
+                      className="absolute top-1 right-1 bg-zinc-900/90 border border-zinc-700 rounded-full p-0.5 text-zinc-400 hover:text-white"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </div>
+                ))}
+                {/* Botão de adicionar mais (até 5) */}
+                {uploadedPhotos.length < 5 && (
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="aspect-square border-2 border-dashed border-zinc-700 rounded-lg flex flex-col items-center justify-center gap-1 hover:border-zinc-500 transition-colors"
+                  >
+                    <Upload className="h-4 w-4 text-zinc-500" />
+                    <span className="text-xs text-zinc-600">Mais</span>
+                  </button>
                 )}
               </div>
-            ) : (
+            )}
+
+            {/* Overlay de análise */}
+            {analyzing && (
+              <div className="flex items-center gap-2 bg-purple-950/50 border border-purple-800 rounded-lg px-3 py-2">
+                <Loader2 className="h-4 w-4 animate-spin text-purple-400 flex-shrink-0" />
+                <span className="text-sm text-purple-300">Claude analisando {uploadedPhotos.length} foto{uploadedPhotos.length > 1 ? 's' : ''}...</span>
+              </div>
+            )}
+
+            {/* Botão inicial quando não tem fotos */}
+            {uploadedPhotos.length === 0 && (
               <button
                 onClick={() => fileRef.current?.click()}
                 className="w-full border-2 border-dashed border-zinc-700 rounded-lg p-6 flex flex-col items-center gap-2 hover:border-zinc-500 transition-colors"
               >
                 <Upload className="h-6 w-6 text-zinc-500" />
-                <span className="text-sm text-zinc-400">Clique para subir foto</span>
-                <span className="text-xs text-zinc-600">JPG, PNG ou WEBP</span>
+                <span className="text-sm text-zinc-400">Clique para subir fotos do produto</span>
+                <span className="text-xs text-zinc-600">Até 5 fotos · JPG, PNG ou WEBP</span>
               </button>
             )}
           </div>

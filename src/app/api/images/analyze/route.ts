@@ -12,37 +12,40 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
-    const { imageBase64, mimeType } = await req.json()
-    if (!imageBase64) return NextResponse.json({ error: 'Imagem obrigatória' }, { status: 400 })
+    const { images } = await req.json()
+    // images: Array<{ base64: string, mimeType: string }>
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return NextResponse.json({ error: 'Imagem obrigatória' }, { status: 400 })
+    }
 
-    const message = await anthropic.messages.create({
-      model: AI_MODEL,
-      max_tokens: 500,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mimeType ?? 'image/jpeg',
-              data: imageBase64,
-            },
-          },
-          {
-            type: 'text',
-            text: `Analise esta imagem de produto para venda na Amazon Brasil. Retorne APENAS um JSON válido com estes campos:
+    // Monta o conteúdo com todas as imagens + instrução no final
+    const content: Parameters<typeof anthropic.messages.create>[0]['messages'][0]['content'] = [
+      ...images.map((img: { base64: string; mimeType: string }) => ({
+        type: 'image' as const,
+        source: {
+          type: 'base64' as const,
+          media_type: (img.mimeType ?? 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+          data: img.base64,
+        },
+      })),
+      {
+        type: 'text' as const,
+        text: `Analise ${images.length > 1 ? `essas ${images.length} fotos do mesmo produto` : 'esta foto do produto'} para venda na Amazon Brasil. Use todas as imagens para ter uma visão completa. Retorne APENAS um JSON válido com estes campos:
 {
-  "nome": "nome descritivo do produto",
+  "nome": "nome descritivo e completo do produto",
   "categoria": "categoria Amazon mais adequada",
   "cor": "cor principal do produto",
   "material": "material principal aparente",
   "diferenciais": "características visuais notáveis separadas por vírgula"
 }
 Seja específico e preciso. Responda APENAS o JSON, sem explicações.`,
-          },
-        ],
-      }],
+      },
+    ]
+
+    const message = await anthropic.messages.create({
+      model: AI_MODEL,
+      max_tokens: 500,
+      messages: [{ role: 'user', content }],
     })
 
     const text = message.content[0].type === 'text' ? message.content[0].text.trim() : '{}'

@@ -11,11 +11,70 @@ interface ProductInfo {
   diferenciais?: string
 }
 
-const IMAGE_TYPE_INSTRUCTIONS: Record<ImageType, string> = {
-  main: `Imagem principal Amazon: produto isolado em fundo BRANCO puro (#FFFFFF), sem sombra, sem texto, sem props. Produto ocupa 85% do quadro, perfeitamente centrado, iluminação profissional de estúdio, ângulo levemente 3/4 frontal. Estilo foto de catálogo e-commerce de alta qualidade.`,
-  lifestyle: `Foto lifestyle Amazon: produto em uso em ambiente real, contexto doméstico ou cotidiano brasileiro. Iluminação natural, cores quentes, atmosfera aconchegante. Pessoa usando ou interagindo com o produto (sem mostrar rosto). Sem texto. Qualidade fotográfica profissional.`,
-  infographic: `Foto infográfica Amazon: produto em fundo branco ou cinza claro, com destaque visual para detalhes e características. Ângulo que mostre funcionalidades. Iluminação profissional de estúdio. Composição limpa e técnica. Sem texto sobreposto (será adicionado depois).`,
-  detail: `Foto de detalhe/zoom Amazon: close-up extremo em um detalhe específico do produto — textura, material, acabamento, botão, conector, costura. Fundo neutro desfocado (bokeh). Iluminação macro profissional. Realça qualidade e durabilidade.`,
+// Variações aleatórias para garantir imagens diferentes a cada geração
+const LIFESTYLE_SCENES = [
+  'modern Brazilian living room with warm afternoon light',
+  'minimalist home office with natural light from window',
+  'cozy kitchen counter with soft morning light',
+  'outdoor terrace with natural sunlight and plants',
+  'contemporary Brazilian apartment, open plan living space',
+  'clean workspace with Scandinavian-style decor',
+  'bright dining area with wooden table and natural light',
+  'modern bedroom with subtle ambient lighting',
+]
+
+const LIFESTYLE_ANGLES = [
+  'shot from slightly above at 45-degree angle',
+  'eye-level shot, straight on',
+  'low angle shot looking slightly up',
+  'over-the-shoulder perspective',
+  'wide establishing shot showing full environment',
+  'medium shot with environmental context',
+]
+
+const LIFESTYLE_LIGHTING = [
+  'warm golden hour sunlight streaming through window',
+  'soft diffused natural daylight',
+  'bright airy natural light',
+  'warm ambient indoor lighting with accent highlights',
+  'cool morning light with slight blue tones',
+  'dramatic side lighting with warm shadows',
+]
+
+const MAIN_ANGLES = [
+  'straight front view, perfectly centered',
+  'slight 3/4 angle from the right',
+  'slight 3/4 angle from the left',
+  'top-down flat lay view',
+  'slight elevation angle showing top and front',
+]
+
+const DETAIL_FOCUSES = [
+  'surface texture and material quality',
+  'key functional component close-up',
+  'finish and craftsmanship details',
+  'joint, seam or connection detail',
+  'logo, branding or label close-up',
+  'most distinctive design feature',
+]
+
+const INFOGRAPHIC_ANGLES = [
+  'three-quarter exploded view showing components',
+  'clean front-facing with shadow to left',
+  'elevated angle showing top and front faces',
+  'slight dynamic angle with clean light background',
+  'symmetrical front view with strong studio lighting',
+]
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+const IMAGE_TYPE_INSTRUCTIONS: Record<ImageType, () => string> = {
+  main: () => `Amazon main product image: product isolated on PURE WHITE background (#FFFFFF), no shadows, no text, no props. Product fills 85% of frame, perfectly centered. Angle: ${pick(MAIN_ANGLES)}. Professional studio lighting, sharp focus, high-end e-commerce catalog quality.`,
+  lifestyle: () => `Amazon lifestyle photo: product being used in a ${pick(LIFESTYLE_SCENES)}. ${pick(LIFESTYLE_ANGLES)}. ${pick(LIFESTYLE_LIGHTING)}. Person interacting with product, face not visible. No text overlay. Professional commercial photography quality, editorial aesthetic.`,
+  infographic: () => `Amazon product detail photo: ${pick(INFOGRAPHIC_ANGLES)}, light gray or white background, professional studio lighting highlighting product construction and features. Clean technical composition, sharp focus throughout, no text or labels. Suitable for Amazon secondary image slot.`,
+  detail: () => `Amazon detail close-up: extreme macro photography focusing on ${pick(DETAIL_FOCUSES)}. Neutral blurred background (bokeh effect). Professional macro studio lighting. Shows material quality, durability and craftsmanship. No text.`,
 }
 
 /**
@@ -24,15 +83,9 @@ const IMAGE_TYPE_INSTRUCTIONS: Record<ImageType, string> = {
 function buildFallbackPrompt(product: ProductInfo, type: ImageType): string {
   const base = `${product.nome}${product.cor ? `, ${product.cor} color` : ''}${product.material ? `, made of ${product.material}` : ''}`
   const extras = product.diferenciais ? `, featuring ${product.diferenciais}` : ''
+  const typeInstruction = IMAGE_TYPE_INSTRUCTIONS[type]()
 
-  const typePrompts: Record<ImageType, string> = {
-    main: `Professional Amazon product photo of ${base}${extras}. Pure white background (#FFFFFF), product centered occupying 85% of frame, soft studio lighting, slight 3/4 angle, sharp focus, e-commerce catalog quality, no shadows, no text, no props.`,
-    lifestyle: `Lifestyle photo of ${base}${extras} being used in a modern Brazilian home. Natural warm lighting, cozy atmosphere, person interacting with product (face not visible), realistic environment, professional photography, no text.`,
-    infographic: `Technical product photo of ${base}${extras}. Light gray background, multiple angles visible, professional studio lighting highlighting product details and features, clean composition, sharp focus, no text overlays.`,
-    detail: `Extreme close-up macro photo of ${base}${extras}. Focus on texture, material quality and finish details. Shallow depth of field (bokeh background), professional macro lighting, shows craftsmanship and quality.`,
-  }
-
-  return typePrompts[type]
+  return `${typeInstruction} Product: ${base}${extras}. High-quality commercial photography, suitable for Amazon Brazil top seller listing.`
 }
 
 /**

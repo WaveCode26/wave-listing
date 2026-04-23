@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Plus, Search, RefreshCw, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Plus, Search, RefreshCw, ChevronRight, AlertTriangle, CloudDownload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScoreBadge } from '@/components/shared/score-badge'
@@ -50,8 +50,26 @@ export default function AuditPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch('/api/amazon/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erro no sync')
+      setSyncResult(`Sync concluído: ${data.synced} produto(s) · ${data.suppressed} suprimido(s) · ${data.errors} erro(s)`)
+      fetchProducts()
+    } catch (err) {
+      setSyncResult(err instanceof Error ? err.message : 'Erro ao sincronizar')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const fetchProducts = useCallback(async () => {
     setLoading(true)
@@ -86,13 +104,32 @@ export default function AuditPage() {
           <h1 className="text-2xl font-bold text-white">Auditoria</h1>
           <p className="text-zinc-400 text-sm mt-0.5">Score de qualidade de todos os seus listings</p>
         </div>
-        <Button
-          onClick={() => setDialogOpen(true)}
-          className="bg-blue-600 hover:bg-blue-500 text-white gap-2"
-        >
-          <Plus className="h-4 w-4" /> Adicionar produto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleSync}
+            disabled={syncing}
+            variant="ghost"
+            className="border border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-800 gap-2"
+          >
+            <CloudDownload className={`h-4 w-4 ${syncing ? 'animate-pulse' : ''}`} />
+            {syncing ? 'Sincronizando...' : 'Sync Amazon'}
+          </Button>
+          <Button
+            onClick={() => setDialogOpen(true)}
+            className="bg-blue-600 hover:bg-blue-500 text-white gap-2"
+          >
+            <Plus className="h-4 w-4" /> Adicionar produto
+          </Button>
+        </div>
       </div>
+
+      {/* Sync result banner */}
+      {syncResult && (
+        <div className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm rounded-lg px-4 py-2.5 flex items-center justify-between">
+          <span>{syncResult}</span>
+          <button onClick={() => setSyncResult(null)} className="text-zinc-500 hover:text-white ml-4">×</button>
+        </div>
+      )}
 
       {/* Search & Refresh */}
       <div className="flex gap-3">

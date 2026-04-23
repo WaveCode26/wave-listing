@@ -144,10 +144,20 @@ export async function generateImage(prompt: string): Promise<string> {
     },
   })
 
-  // Replicate retorna string ou array
-  const url = Array.isArray(output) ? output[0] : output
-  if (!url || typeof url !== 'string') throw new Error('Replicate não retornou URL de imagem')
-  return url
+  // Replicate pode retornar: string, FileOutput, array de qualquer um
+  let raw: unknown = Array.isArray(output) ? output[0] : output
+
+  // FileOutput da SDK nova tem método .url() ou .toString()
+  if (raw && typeof raw === 'object') {
+    if (typeof (raw as { url?: () => string }).url === 'function') {
+      raw = (raw as { url: () => string }).url()
+    } else if (typeof (raw as { toString?: () => string }).toString === 'function') {
+      raw = (raw as { toString: () => string }).toString()
+    }
+  }
+
+  if (!raw || typeof raw !== 'string') throw new Error('Replicate não retornou URL de imagem')
+  return raw as string
 }
 
 /**

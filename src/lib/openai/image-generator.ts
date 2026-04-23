@@ -1,5 +1,7 @@
-import { openai } from './client'
+import Replicate from 'replicate'
 import { anthropic, AI_MODEL } from '@/lib/ai/client'
+
+const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN })
 
 export type ImageType = 'main' | 'lifestyle' | 'infographic' | 'detail'
 
@@ -128,20 +130,23 @@ Crie um prompt em INGLÊS para o DALL-E 3 gerar esta imagem. O prompt deve ser:
 }
 
 /**
- * Step 2: DALL-E 3 gera a imagem a partir do prompt
+ * Step 2: Flux 1.1 Pro (Replicate) gera a imagem a partir do prompt
  */
 export async function generateImage(prompt: string): Promise<string> {
-  const response = await openai.images.generate({
-    model: 'dall-e-3',
-    prompt,
-    n: 1,
-    size: '1024x1024',
-    quality: 'hd',
-    style: 'natural',
+  const output = await replicate.run('black-forest-labs/flux-1.1-pro', {
+    input: {
+      prompt,
+      aspect_ratio: '1:1',
+      output_format: 'jpg',
+      output_quality: 90,
+      safety_tolerance: 2,
+      prompt_upsampling: true,
+    },
   })
 
-  const url = response.data?.[0]?.url
-  if (!url) throw new Error('DALL-E não retornou URL de imagem')
+  // Replicate retorna string ou array
+  const url = Array.isArray(output) ? output[0] : output
+  if (!url || typeof url !== 'string') throw new Error('Replicate não retornou URL de imagem')
   return url
 }
 

@@ -6,6 +6,7 @@ import {
   BarChart2,
   Globe,
   Settings,
+  ImagePlus,
 } from 'lucide-react'
 
 export const navigation = [
@@ -28,6 +29,11 @@ export const navigation = [
     label: 'Workflow',
     href: '/dashboard/workflow',
     icon: Kanban,
+  },
+  {
+    label: 'Imagens IA',
+    href: '/dashboard/images',
+    icon: ImagePlus,
   },
   {
     label: 'Otimização',
